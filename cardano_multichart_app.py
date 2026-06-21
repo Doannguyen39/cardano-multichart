@@ -3,6 +3,14 @@ import requests
 import time
 import plotly.graph_objects as go
 
+# Auto-refresh component. Import an toàn: nếu chưa thêm vào requirements.txt
+# thì app vẫn chạy (chỉ tắt auto + nhắc cài), KHÔNG crash.
+try:
+    from streamlit_autorefresh import st_autorefresh
+    HAS_AUTOREFRESH = True
+except Exception:
+    HAS_AUTOREFRESH = False
+
 st.set_page_config(
     page_title="Cardano Multichart",
     page_icon="◈",
@@ -42,6 +50,9 @@ TOKENS = [
 TF_PERIODS = {"15m":"15min","1H":"1hour","4H":"4hour","1D":"1day"}
 TF_RANGE   = {"15m":2*24*3600,"1H":7*24*3600,"4H":30*24*3600,"1D":180*24*3600}
 
+# Interval auto-refresh (giây) → nhãn hiển thị
+REFRESH_OPTS = {30: "30s", 60: "1m", 120: "2m", 300: "5m"}
+
 if "api_key" not in st.session_state:
     st.session_state.api_key = ""
 if "ada_usd" not in st.session_state:
@@ -61,7 +72,9 @@ def get_ada_price(api_key):
 
 # ── Fetch OHLCV ──────────────────────────────────────────────────
 def fetch_ohlcv(token_id, period, range_secs, api_key):
-    ck = f"{token_id}_{period}_{int(time.time()//300)}"
+    # Cache theo token+period; chỉ fetch lại khi do_refresh=True (bấm ↺ hoặc auto-tick).
+    # Bỏ time-bucket cũ (//300) vì nó vừa chặn auto-refresh dưới 5 phút, vừa rò rỉ cache.
+    ck = f"{token_id}_{period}"
     if ck in st.session_state.cache and not do_refresh:
         return st.session_state.cache[ck], None
     now = int(time.time())
@@ -188,7 +201,7 @@ def fmt_usd(p):
     return f"${p:,.0f}"
 
 # ── Header ───────────────────────────────────────────────────────
-c1,c2,c3,c4 = st.columns([2,3,5,2])
+c1,c2,c3,c4,c5 = st.columns([2, 2, 3.4, 2.4, 1.4])
 with c1:
     st.markdown('<p style="font-family:monospace;font-size:13px;font-weight:700;'
                 'color:#00d4aa;margin:6px 0">◈ ADA MULTICHART</p>',
@@ -203,9 +216,17 @@ with c3:
     if key_in:
         st.session_state.api_key = key_in
 with c4:
+    a1, a2 = st.columns([1, 1])
+    with a1:
+        auto = st.toggle("Auto", value=True, help="Tự refresh dữ liệu theo chu kỳ (dùng rerun, KHÔNG reload trang nên không mất API key)")
+    with a2:
+        interval = st.selectbox("int", list(REFRESH_OPTS.keys()), index=1,
+                                format_func=lambda s: REFRESH_OPTS[s],
+                                label_visibility="collapsed")
+with c5:
     ca,cb = st.columns([1,1])
     with ca:
-        do_refresh = st.button("↺")
+        manual_btn = st.button("↺")
     with cb:
         if st.session_state.api_key:
             st.markdown('<p style="color:#00d4aa;font-size:10px;'
@@ -215,6 +236,21 @@ with c4:
             st.markdown('<p style="color:#f03e3e;font-size:10px;'
                         'font-family:monospace;margin:8px 0">⚠ Key</p>',
                         unsafe_allow_html=True)
+
+# ── Auto-refresh: chỉ gọi 1 LẦN, dùng rerun (giữ session_state/api_key) ──────────
+refresh_count = 0
+if auto and HAS_AUTOREFRESH:
+    refresh_count = st_autorefresh(interval=interval * 1000, key="ada_auto")
+
+_prev = st.session_state.get("_auto_count", None)
+auto_ticked = bool(auto) and (refresh_count != _prev)   # True khi timer vừa tick
+st.session_state["_auto_count"] = refresh_count
+
+# do_refresh = bấm nút thủ công HOẶC auto vừa tick → fetch lại tất cả
+do_refresh = bool(manual_btn) or auto_ticked
+
+if auto and not HAS_AUTOREFRESH:
+    st.caption("⚠️ Auto chưa chạy được — thêm dòng `streamlit-autorefresh` vào **requirements.txt** rồi reboot app.")
 
 st.divider()
 
@@ -232,7 +268,7 @@ api_key  = st.session_state.api_key
 period   = TF_PERIODS[tf]
 rng      = TF_RANGE[tf]
 
-# Lấy ADA/USD
+# Lấy ADA/USD (refresh mỗi lần do_refresh, hoặc lần đầu khi còn 0)
 if do_refresh or st.session_state.ada_usd == 0.0:
     st.session_state.ada_usd = get_ada_price(api_key)
 ada_usd = st.session_state.ada_usd if st.session_state.ada_usd > 0 else 1.0
@@ -280,8 +316,10 @@ for i, tok in enumerate(TOKENS):
         st.plotly_chart(fig, use_container_width=True,
                         config={"displayModeBar":False})
 
+# Footer + trạng thái auto
+_auto_txt = (f"· auto {REFRESH_OPTS[interval]}" if (auto and HAS_AUTOREFRESH) else "· auto off")
 st.markdown(
-    '<p style="text-align:center;font-family:monospace;font-size:9px;'
-    'color:#1e2330;margin-top:2px">DexHunter Charts API · Cardano on-chain</p>',
+    f'<p style="text-align:center;font-family:monospace;font-size:9px;'
+    f'color:#1e2330;margin-top:2px">DexHunter Charts API · Cardano on-chain {_auto_txt}</p>',
     unsafe_allow_html=True
 )
