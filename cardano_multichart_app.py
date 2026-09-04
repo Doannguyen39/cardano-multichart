@@ -43,7 +43,7 @@ TOKENS = [
     {"ticker": "SNEK",  "id": "279c909f348e533da5808898f87f9a14bb2c3dfbbacccd631d927a3f534e454b"},
     {"ticker": "RJV",   "id": "8cfd6893f5f6c1cc954cec1a0a1460841b74da6e7803820dde62bb78524a56"},
     {"ticker": "MIN",   "id": "29d222ce763455e3d7a09a665ce554f00ac89d2e99a1a83d267170c64d494e"},
-    {"ticker": "FLDT",  "id": "577f0b1342f8f8f4aed3388b80a8535812950c7a892495c0ecdf0f1e0014df10464c4454"},
+    {"ticker": "NTX",  "id": "edfd7a1d77bcb8b884c474bdc92a16002d1fb720e454fa6e993444794e5458"},
     {"ticker": "BOS",   "id": "1fa8a8909a66bb5c850c1fc3fe48903a5879ca2c1c9882e9055eef8d0014df10424f5320546f6b656e"},
 ]
 
